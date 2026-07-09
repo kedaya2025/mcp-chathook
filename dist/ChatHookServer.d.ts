@@ -5,7 +5,6 @@
 export declare const SIGNALS: {
     readonly USER_DECLINED: "[CHATHOOK:USER_DECLINED]";
     readonly USER_CANCELLED: "[CHATHOOK:USER_CANCELLED]";
-    readonly CLIENT_NOT_SUPPORTED: "[CHATHOOK:CLIENT_NOT_SUPPORTED]";
 };
 export declare class ChatHookServer {
     private server;
