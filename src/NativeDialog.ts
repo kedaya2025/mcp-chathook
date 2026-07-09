@@ -174,10 +174,13 @@ async function showMshtaDialog(
 </style>
 <script language="VBScript">
   Sub WriteResult(val)
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set f = fso.CreateTextFile("${resultFile.replace(/\\/g, "\\\\")}", 2, True)
-    f.Write val
-    f.Close
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2
+    stream.Charset = "utf-8"
+    stream.Open
+    stream.WriteText val
+    stream.SaveToFile "${resultFile.replace(/\\/g, "\\\\")}", 2
+    stream.Close
     window.close
   End Sub
 
@@ -245,9 +248,14 @@ async function showMshtaDialog(
       });
     });
 
-    // Read result
+    // Read result (ADODB.Stream UTF-8 may include BOM)
     if (fs.existsSync(resultFile)) {
-      const content = fs.readFileSync(resultFile, "utf-8").trim();
+      let content = fs.readFileSync(resultFile, "utf-8");
+      // Strip BOM if present
+      if (content.charCodeAt(0) === 0xfeff) {
+        content = content.slice(1);
+      }
+      content = content.trim();
       if (content === "__CANCELLED__") {
         return { action: "cancel", text: "" };
       }
