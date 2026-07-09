@@ -186,12 +186,15 @@ function fitTextarea() {
 }
 window.onresize = fitTextarea;
 
-// ── Always on top ──
-var shell = new ActiveXObject('WScript.Shell');
+// ── Always on top (only when window loses focus, preserves input focus) ──
 function stayOnTop() {
-  shell.AppActivate('chathook');
+  if (!document.hasFocus()) {
+    var activeEl = document.activeElement;
+    window.focus();
+    if (activeEl && activeEl.tagName) activeEl.focus();
+  }
 }
-setInterval(stayOnTop, 500);
+setInterval(stayOnTop, 1000);
 
 // ── Countdown timer (MCP timeout ~180s, use 170s for safety) ──
 var remaining = 170;
