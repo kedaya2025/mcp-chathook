@@ -35,7 +35,7 @@ async function showMshtaDialog(message, suggestions) {
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <HTA:APPLICATION
   ID="chathook"
-  BORDER="dialog"
+  BORDER="thick"
   BORDERSTYLE="normal"
   CAPTION="yes"
   ICON=""
@@ -59,17 +59,20 @@ async function showMshtaDialog(message, suggestions) {
   }
   body { padding: 16px 20px; }
   .message {
-    font-size: 16px;
-    line-height: 1.7;
+    font-size: 14px;
+    line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
     margin-bottom: 14px;
-    max-height: 180px;
-    overflow-y: auto;
+    height: 42px;
+    max-height: 42px;
+    overflow: hidden;
+    color: #666666;
   }
   textarea {
     width: 100%;
     height: 120px;
+    flex-shrink: 0;
     border: 1px solid #cccccc;
     border-radius: 3px;
     font-family: inherit;
@@ -165,21 +168,11 @@ document.title = b64decode("${titleB64}");
 document.getElementById('message').innerText = b64decode("${messageB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
-// ── Dynamic window sizing: content height + 20px below button ──
+// ── Fixed window sizing: message capped at 42px, no dynamic resize ──
 function fitWindow() {
-  // Measure actual content
-  var msgH = document.getElementById('message').offsetHeight;
-  var taH = document.getElementById('input').offsetHeight;
-  var actH = document.getElementById('submitBtn').offsetHeight;
-  var bodyPadTop = 16;
-  var bodyPadBottom = 16;
-  var msgMarginBottom = 14;
-  var actionsMarginTop = 12;
-  var belowBtn = 20;
-
-  var contentH = bodyPadTop + msgH + msgMarginBottom + taH + actionsMarginTop + actH + belowBtn + bodyPadBottom;
-  // Window border/title bar overhead (~34px for dialog border)
-  var winH = contentH + 34;
+  // Fixed layout: message(42) + margin(14) + textarea(120) + margin(12) + button(36) + paddings(32) + below(20)
+  var contentH = 16 + 42 + 14 + 120 + 12 + 36 + 20 + 16;
+  var winH = contentH + 34; // border/title overhead
   var winW = 520;
   window.resizeTo(winW, winH);
   var sw = screen.availWidth, sh = screen.availHeight;
