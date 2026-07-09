@@ -24,10 +24,9 @@ async function showMshtaDialog(message, suggestions) {
     const resultFile = path.join(tmpDir, `chathook_result_${id}.txt`);
     const htaFile = path.join(tmpDir, `chathook_dialog_${id}.hta`);
     // All Chinese text → Base64 (avoids any encoding issues in the file)
-    const messageB64 = Buffer.from(message, "utf-8").toString("base64");
     const titleB64 = Buffer.from("Chathook - 会话钩子", "utf-8").toString("base64");
     const submitB64 = Buffer.from("提交对话", "utf-8").toString("base64");
-    // Suggestions removed per user request — dialog is just prompt + input + submit
+    // No message area in UI — dialog is just input box + submit button + countdown
     const htaContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -58,17 +57,6 @@ async function showMshtaDialog(message, suggestions) {
     height: 100%;
   }
   body { padding: 16px 20px; }
-  .message {
-    font-size: 14px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin-bottom: 14px;
-    height: 42px;
-    max-height: 42px;
-    overflow: hidden;
-    color: #666666;
-  }
   textarea {
     width: 100%;
     height: 120px;
@@ -106,7 +94,6 @@ async function showMshtaDialog(message, suggestions) {
 </style>
 </head>
 <body>
-  <div class="message" id="message"></div>
   <textarea id="input" placeholder=""></textarea>
   <div class="actions">
     <span class="countdown" id="countdown"></span>
@@ -165,13 +152,12 @@ function writeResult(text) {
 
 // ── Set Chinese text via Base64 ──
 document.title = b64decode("${titleB64}");
-document.getElementById('message').innerText = b64decode("${messageB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
-// ── Fixed window sizing: message capped at 42px, no dynamic resize ──
+// ── Fixed window sizing: no message area, compact layout ──
 function fitWindow() {
-  // Fixed layout: message(42) + margin(14) + textarea(120) + margin(12) + button(36) + paddings(32) + below(20)
-  var contentH = 16 + 42 + 14 + 120 + 12 + 36 + 20 + 16;
+  // Fixed layout: textarea(120) + margin(12) + button(36) + paddings(32) + below(20)
+  var contentH = 16 + 120 + 12 + 36 + 20 + 16;
   var winH = contentH + 34; // border/title overhead
   var winW = 520;
   window.resizeTo(winW, winH);
