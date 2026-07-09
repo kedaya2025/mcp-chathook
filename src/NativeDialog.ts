@@ -4,11 +4,11 @@ import path from "node:path";
 import os from "node:os";
 
 /**
- * Shows a native desktop dialog (not a browser) using Windows mshta.exe.
- * The dialog displays a message, optional quick-reply buttons, a text area,
- * and Submit / Cancel buttons.
+ * Shows a native desktop dialog using Windows PowerShell + Windows.Forms.
  *
- * Data is exchanged via Base64 to avoid all encoding issues.
+ * PowerShell natively supports UTF-8, so no encoding issues.
+ * The result is written to a temp file as UTF-8, then read by Node.js.
+ *
  * On non-Windows platforms, falls back to a terminal-based prompt.
  */
 export async function showNativeDialog(
@@ -16,276 +16,211 @@ export async function showNativeDialog(
   suggestions: string[] = [],
 ): Promise<{ action: "accept" | "cancel"; text: string }> {
   if (process.platform === "win32") {
-    return showMshtaDialog(message, suggestions);
+    return showPowerShellDialog(message, suggestions);
   }
   return showStdinDialog(message);
 }
 
-// ─── Windows: mshta.exe ─────────────────────────────────────
+// ─── Windows: PowerShell + Windows.Forms ────────────────────
 
-async function showMshtaDialog(
+async function showPowerShellDialog(
   message: string,
   suggestions: string[],
 ): Promise<{ action: "accept" | "cancel"; text: string }> {
   const tmpDir = os.tmpdir();
   const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const resultFile = path.join(tmpDir, `chathook_result_${id}.txt`);
-  const htaFile = path.join(tmpDir, `chathook_dialog_${id}.hta`);
 
-  // Escape message for embedding in HTML
-  const escapedMessage = escapeHtml(message);
+  // Build suggestion buttons script
+  let suggestionButtonCode = "";
+  let suggestionClickHandlers = "";
+  if (suggestions.length > 0) {
+    suggestionButtonCode = `
+      $suggestionPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+      $suggestionPanel.AutoSize = $true
+      $suggestionPanel.AutoSizeMode = 'GrowAndShrink'
+      $suggestionPanel.FlowDirection = 'LeftToRight'
+      $suggestionPanel.WrapContents = $true
+      $suggestionPanel.Padding = New-Object System.Windows.Forms.Padding(0,0,0,8)`;
 
-  // Build suggestion buttons
-  const suggestionButtons = suggestions
-    .map(
-      (s) =>
-        `<button class="suggestion-btn" onclick="fillInput('${escapeJsString(s)}')">${escapeHtml(s)}</button>`,
-    )
-    .join("\n");
+    suggestions.forEach((s, i) => {
+      const escaped = s.replace(/'/g, "''");
+      suggestionButtonCode += `
+      $btn${i} = New-Object System.Windows.Forms.Button
+      $btn${i}.Text = '${escaped}'
+      $btn${i}.FlatStyle = 'Flat'
+      $btn${i}.BackColor = [System.Drawing.Color]::FromArgb(69,71,90)
+      $btn${i}.ForeColor = [System.Drawing.Color]::FromArgb(205,214,244)
+      $btn${i}.Font = $smallFont
+      $btn${i}.Padding = New-Object System.Windows.Forms.Padding(10,3,10,3)
+      $btn${i}.Cursor = 'Hand'
+      $btn${i}.Add_Click({ $inputBox.Text = '${escaped}' })`;
+      suggestionClickHandlers += `
+      $suggestionPanel.Controls.Add($btn${i})`;
+    });
+  }
 
-  // Path with double backslashes for VBScript string
-  const vbsPath = resultFile.replace(/\\/g, "\\\\");
+  const escapedMessage = message.replace(/'/g, "''");
+  const escapedResultPath = resultFile.replace(/\\/g, "\\");
 
-  const htaContent = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<HTA:APPLICATION
-  ID="chathook"
-  BORDER="dialog"
-  BORDERSTYLE="normal"
-  CAPTION="yes"
-  ICON=""
-  MAXIMIZEBUTTON="no"
-  MINIMIZEBUTTON="no"
-  SCROLL="no"
-  SHOWINTASKBAR="yes"
-  SINGLEINSTANCE="yes"
-  SYSMENU="yes"
-  WINDOWSTATE="normal"
-/>
-<title>chathook - AI 对话钩子</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
-    background: #1e1e2e;
-    color: #cdd6f4;
-    padding: 20px;
-    overflow: hidden;
-  }
-  .header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    font-size: 15px;
-    font-weight: 700;
-    color: #89b4fa;
-  }
-  .header-icon {
-    width: 28px; height: 28px;
-    border-radius: 7px;
-    background: linear-gradient(135deg, #89b4fa, #b4befe);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; color: #1e1e2e;
-  }
-  .message {
-    background: #313244;
-    border-left: 3px solid #89b4fa;
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin-bottom: 14px;
-    font-size: 14px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-  .suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-  .suggestion-btn {
-    padding: 5px 14px;
-    background: #45475a;
-    border: 1px solid #585b70;
-    border-radius: 16px;
-    color: #cdd6f4;
-    font-size: 12px;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .suggestion-btn:hover {
-    background: #585b70;
-    border-color: #89b4fa;
-    color: #89b4fa;
-  }
-  textarea {
-    width: 100%;
-    min-height: 100px;
-    background: #313244;
-    border: 1px solid #585b70;
-    border-radius: 8px;
-    color: #cdd6f4;
-    font-family: inherit;
-    font-size: 14px;
-    line-height: 1.5;
-    padding: 12px;
-    resize: vertical;
-    outline: none;
-  }
-  textarea:focus { border-color: #89b4fa; }
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 14px;
-  }
-  button.action-btn {
-    padding: 8px 22px;
-    border-radius: 8px;
-    border: none;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .btn-cancel {
-    background: transparent;
-    border: 1px solid #f38ba8;
-    color: #f38ba8;
-  }
-  .btn-cancel:hover { background: rgba(243,139,168,0.1); }
-  .btn-submit {
-    background: #89b4fa;
-    color: #1e1e2e;
-  }
-  .btn-submit:hover { background: #b4befe; }
-  .footer {
-    text-align: center;
-    font-size: 11px;
-    color: #6c7086;
-    margin-top: 10px;
-  }
-</style>
-<script language="VBScript">
-  ' Write result as Base64-encoded UTF-8 to avoid all encoding issues
-  Sub WriteResult(text, isCancel)
-    Dim encoded
-    If isCancel Then
-      encoded = "CANCEL"
-    Else
-      ' Convert text to UTF-8 bytes, then to Base64
-      Set stream = CreateObject("ADODB.Stream")
-      stream.Type = 2  ' adTypeText
-      stream.Charset = "utf-8"
-      stream.Open
-      stream.WriteText text
-      stream.Position = 0
-      stream.Type = 1  ' adTypeBinary
-      ' Skip the 3-byte UTF-8 BOM that ADODB.Stream adds
-      stream.Position = 3
-      Dim bytes
-      bytes = stream.Read
-      stream.Close
+  const psScript = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
-      Set xml = CreateObject("MSXML2.DOMDocument")
-      Set node = xml.createElement("b64")
-      node.dataType = "bin.base64"
-      node.nodeTypedValue = bytes
-      encoded = node.text
-    End If
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'chathook - AI 对话钩子'
+$form.Size = New-Object System.Drawing.Size(540, 500)
+$form.StartPosition = 'CenterScreen'
+$form.FormBorderStyle = 'FixedDialog'
+$form.MaximizeBox = $false
+$form.MinimizeBox = $false
+$form.BackColor = [System.Drawing.Color]::FromArgb(30,30,46)
+$form.ForeColor = [System.Drawing.Color]::FromArgb(205,214,244)
+$form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 
-    ' Write encoded string as ASCII (pure ASCII, no encoding issues)
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set f = fso.CreateTextFile("${vbsPath}", True, False)
-    f.Write encoded
-    f.Close
-    window.close
-  End Sub
+$smallFont = New-Object System.Drawing.Font('Segoe UI', 8)
 
-  Sub OnSubmit()
-    WriteResult document.getElementById("userInput").Value, False
-  End Sub
+# Header
+$headerLabel = New-Object System.Windows.Forms.Label
+$headerLabel.Text = 'chathook'
+$headerLabel.Font = New-Object System.Drawing.Font('Segoe UI', 12, [System.Drawing.FontStyle]::Bold)
+$headerLabel.ForeColor = [System.Drawing.Color]::FromArgb(137,180,250)
+$headerLabel.AutoSize = $true
+$headerLabel.Location = New-Object System.Drawing.Point(20, 15)
+$form.Controls.Add($headerLabel)
 
-  Sub OnCancel()
-    WriteResult "", True
-  End Sub
+# Message
+$msgLabel = New-Object System.Windows.Forms.Label
+$msgLabel.Text = '${escapedMessage}'
+$msgLabel.AutoSize = $false
+$msgLabel.Width = 490
+$msgLabel.Height = 120
+$msgLabel.Location = New-Object System.Drawing.Point(20, 50)
+$msgLabel.BackColor = [System.Drawing.Color]::FromArgb(49,50,68)
+$msgLabel.ForeColor = [System.Drawing.Color]::FromArgb(205,214,244)
+$msgLabel.Padding = New-Object System.Windows.Forms.Padding(12,10,12,10)
+$form.Controls.Add($msgLabel)
 
-  Sub FillInput(val)
-    document.getElementById("userInput").Value = val
-  End Sub
+$yOffset = 180
+${suggestionButtonCode}
+${suggestionClickHandlers ? `
+$suggestionPanel.Location = New-Object System.Drawing.Point(20, $yOffset)
+$form.Controls.Add($suggestionPanel)
+$yOffset += 40` : ''}
 
-  Sub Window_OnLoad()
-    window.resizeTo 520, 480
-    Dim sw, sh
-    sw = document.parentWindow.screen.availWidth
-    sh = document.parentWindow.screen.availHeight
-    window.moveTo (sw - 520) \\ 2, (sh - 480) \\ 2
-    document.getElementById("userInput").Focus
-  End Sub
-</script>
-</head>
-<body>
-  <div class="header">
-    <div class="header-icon">&#128279;</div>
-    <span>chathook</span>
-  </div>
-  <div class="message">${escapedMessage}</div>
-  ${suggestions.length > 0 ? `<div class="suggestions">${suggestionButtons}</div>` : ""}
-  <textarea id="userInput" placeholder="输入你的回复..."></textarea>
-  <div class="actions">
-    <button class="action-btn btn-cancel" onclick="OnCancel()">取消</button>
-    <button class="action-btn btn-submit" onclick="OnSubmit()">提交 &#9656;</button>
-  </div>
-  <div class="footer">chathook v1.0 &#8226; Ctrl+Enter to submit</div>
-  <script language="VBScript">
-    Sub userInput_OnKeyDown
-      If window.event.ctrlKey And window.event.keyCode = 13 Then
-        OnSubmit
-      End If
-    End Sub
-  </script>
-</body>
-</html>`;
+# Input textbox
+$inputBox = New-Object System.Windows.Forms.TextBox
+$inputBox.Multiline = $true
+$inputBox.Size = New-Object System.Drawing.Size(490, 120)
+$inputBox.Location = New-Object System.Drawing.Point(20, $yOffset)
+$inputBox.BackColor = [System.Drawing.Color]::FromArgb(49,50,68)
+$inputBox.ForeColor = [System.Drawing.Color]::FromArgb(205,214,244)
+$inputBox.BorderStyle = 'FixedSingle'
+$inputBox.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+$form.Controls.Add($inputBox)
+
+$yOffset += 130
+
+# Buttons
+$btnPanel = New-Object System.Windows.Forms.Panel
+$btnPanel.Size = New-Object System.Drawing.Size(490, 35)
+$btnPanel.Location = New-Object System.Drawing.Point(20, $yOffset)
+$btnPanel.BackColor = [System.Drawing.Color]::FromArgb(30,30,46)
+
+$cancelBtn = New-Object System.Windows.Forms.Button
+$cancelBtn.Text = '取消'
+$cancelBtn.Size = New-Object System.Drawing.Size(80, 32)
+$cancelBtn.Location = New-Object System.Drawing.Point(305, 0)
+$cancelBtn.FlatStyle = 'Flat'
+$cancelBtn.BackColor = [System.Drawing.Color]::FromArgb(30,30,46)
+$cancelBtn.ForeColor = [System.Drawing.Color]::FromArgb(243,139,168)
+$cancelBtn.Cursor = 'Hand'
+$cancelBtn.Add_Click({
+    [System.IO.File]::WriteAllText('${escapedResultPath}', 'CANCEL', [System.Text.Encoding]::UTF8)
+    $form.Close()
+})
+
+$submitBtn = New-Object System.Windows.Forms.Button
+$submitBtn.Text = '提交 ▸'
+$submitBtn.Size = New-Object System.Drawing.Size(90, 32)
+$submitBtn.Location = New-Object System.Drawing.Point(395, 0)
+$submitBtn.FlatStyle = 'Flat'
+$submitBtn.BackColor = [System.Drawing.Color]::FromArgb(137,180,250)
+$submitBtn.ForeColor = [System.Drawing.Color]::FromArgb(30,30,46)
+$submitBtn.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$submitBtn.Cursor = 'Hand'
+$submitBtn.Add_Click({
+    [System.IO.File]::WriteAllText('${escapedResultPath}', $inputBox.Text, [System.Text.Encoding]::UTF8)
+    $form.Close()
+})
+
+$btnPanel.Controls.Add($cancelBtn)
+$btnPanel.Controls.Add($submitBtn)
+$form.Controls.Add($btnPanel)
+
+# Ctrl+Enter to submit
+$inputBox.Add_KeyDown({
+    if ($_.Control -and $_.KeyCode -eq 'Enter') {
+        [System.IO.File]::WriteAllText('${escapedResultPath}', $inputBox.Text, [System.Text.Encoding]::UTF8)
+        $form.Close()
+    }
+})
+
+# Handle X button close
+$form.Add_FormClosing({
+    if (-not (Test-Path '${escapedResultPath}')) {
+        [System.IO.File]::WriteAllText('${escapedResultPath}', 'CANCEL', [System.Text.Encoding]::UTF8)
+    }
+})
+
+$form.Activate()
+$inputBox.Focus()
+$form.ShowDialog() | Out-Null
+`;
+
+  // Write PowerShell script to temp file
+  const psFile = path.join(tmpDir, `chathook_dialog_${id}.ps1`);
+  fs.writeFileSync(psFile, psScript, "utf-8");
 
   try {
-    // Write HTA file with UTF-8 BOM so mshta.exe renders Chinese correctly
-    const bom = "\uFEFF";
-    fs.writeFileSync(htaFile, bom + htaContent, "utf-8");
-
     await new Promise<void>((resolve, reject) => {
-      const proc = spawn("mshta.exe", [`"${htaFile}"`], {
-        shell: true,
-        stdio: "ignore",
-      });
+      const proc = spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy", "Bypass",
+          "-File", psFile,
+        ],
+        {
+          shell: false,
+          stdio: "ignore",
+        },
+      );
       proc.on("close", () => resolve());
       proc.on("error", (err) => reject(err));
     });
 
-    // Read result (pure ASCII Base64 or "CANCEL")
+    // Read result
     if (fs.existsSync(resultFile)) {
-      const raw = fs.readFileSync(resultFile, "latin1").trim();
+      let content = fs.readFileSync(resultFile, "utf-8");
+      // Strip BOM if present
+      if (content.charCodeAt(0) === 0xfeff) {
+        content = content.slice(1);
+      }
+      content = content.trim();
 
-      if (raw === "CANCEL") {
+      if (content === "CANCEL") {
         return { action: "cancel", text: "" };
       }
-
-      // Decode Base64 → UTF-8
-      const text = Buffer.from(raw, "base64").toString("utf-8");
-      return { action: "accept", text };
+      return { action: "accept", text: content };
     }
 
-    // File doesn't exist — dialog was closed via X button
     return { action: "cancel", text: "" };
   } finally {
-    // Cleanup temp files
     try {
-      if (fs.existsSync(htaFile)) fs.unlinkSync(htaFile);
+      if (fs.existsSync(psFile)) fs.unlinkSync(psFile);
       if (fs.existsSync(resultFile)) fs.unlinkSync(resultFile);
     } catch {
       // ignore
@@ -300,7 +235,9 @@ async function showStdinDialog(
 ): Promise<{ action: "accept" | "cancel"; text: string }> {
   return new Promise((resolve) => {
     process.stderr.write(`\n[chathook] ${message}\n`);
-    process.stderr.write(`[chathook] Enter your response (or type __cancel__ to cancel):\n> `);
+    process.stderr.write(
+      `[chathook] Enter your response (or type __cancel__ to cancel):\n> `,
+    );
     process.stdin.resume();
     process.stdin.once("data", (data) => {
       process.stdin.pause();
@@ -312,19 +249,4 @@ async function showStdinDialog(
       }
     });
   });
-}
-
-// ─── Helpers ────────────────────────────────────────────────
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function escapeJsString(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
