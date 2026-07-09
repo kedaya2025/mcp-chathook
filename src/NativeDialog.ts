@@ -137,7 +137,8 @@ $cancelBtn.BackColor = [System.Drawing.Color]::FromArgb(30,30,46)
 $cancelBtn.ForeColor = [System.Drawing.Color]::FromArgb(243,139,168)
 $cancelBtn.Cursor = 'Hand'
 $cancelBtn.Add_Click({
-    [System.IO.File]::WriteAllText('${escapedResultPath}', 'CANCEL', [System.Text.Encoding]::UTF8)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText('${escapedResultPath}', 'CANCEL', $utf8NoBom)
     $form.Close()
 })
 
@@ -151,7 +152,8 @@ $submitBtn.ForeColor = [System.Drawing.Color]::FromArgb(30,30,46)
 $submitBtn.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $submitBtn.Cursor = 'Hand'
 $submitBtn.Add_Click({
-    [System.IO.File]::WriteAllText('${escapedResultPath}', $inputBox.Text, [System.Text.Encoding]::UTF8)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText('${escapedResultPath}', $inputBox.Text, $utf8NoBom)
     $form.Close()
 })
 
@@ -162,7 +164,8 @@ $form.Controls.Add($btnPanel)
 # Ctrl+Enter to submit
 $inputBox.Add_KeyDown({
     if ($_.Control -and $_.KeyCode -eq 'Enter') {
-        [System.IO.File]::WriteAllText('${escapedResultPath}', $inputBox.Text, [System.Text.Encoding]::UTF8)
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText('${escapedResultPath}', $inputBox.Text, $utf8NoBom)
         $form.Close()
     }
 })
@@ -170,7 +173,8 @@ $inputBox.Add_KeyDown({
 # Handle X button close
 $form.Add_FormClosing({
     if (-not (Test-Path '${escapedResultPath}')) {
-        [System.IO.File]::WriteAllText('${escapedResultPath}', 'CANCEL', [System.Text.Encoding]::UTF8)
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText('${escapedResultPath}', 'CANCEL', $utf8NoBom)
     }
 })
 
@@ -202,13 +206,10 @@ $form.ShowDialog() | Out-Null
       proc.on("error", (err) => reject(err));
     });
 
-    // Read result
+    // Read result — detect encoding to handle UTF-8, UTF-16LE, and BOM
     if (fs.existsSync(resultFile)) {
-      let content = fs.readFileSync(resultFile, "utf-8");
-      // Strip BOM if present
-      if (content.charCodeAt(0) === 0xfeff) {
-        content = content.slice(1);
-      }
+      const buf = fs.readFileSync(resultFile);
+      let content = decodeTextBuffer(buf);
       content = content.trim();
 
       if (content === "CANCEL") {
@@ -249,4 +250,52 @@ async function showStdinDialog(
       }
     });
   });
+}
+
+// ─── Helpers ────────────────────────────────────────────────
+
+/**
+ * Robustly decode a Buffer to string, handling UTF-8 BOM, UTF-16LE BOM,
+ * and raw UTF-16LE (Windows PowerShell default in some cases).
+ */
+function decodeTextBuffer(buf: Buffer): string {
+  if (buf.length === 0) return "";
+
+  // UTF-8 BOM (EF BB BF)
+  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return buf.slice(3).toString("utf-8");
+  }
+
+  // UTF-16LE BOM (FF FE)
+  if (buf[0] === 0xff && buf[1] === 0xfe) {
+    return buf.slice(2).toString("utf-16le");
+  }
+
+  // UTF-16BE BOM (FE FF) — rare but handle it
+  if (buf[0] === 0xfe && buf[1] === 0xff) {
+    return buf.slice(2).swap16().toString("utf-16le");
+  }
+
+  // No BOM — detect UTF-16LE by checking for zero-byte pattern
+  // (common when PowerShell writes with default encoding)
+  if (buf.length >= 2 && buf[1] === 0x00 && buf[0] !== 0x00) {
+    // Check if every odd byte is 0x00 (typical of ASCII/Chinese in UTF-16LE)
+    let isUtf16 = true;
+    for (let i = 1; i < Math.min(buf.length, 100); i += 2) {
+      if (buf[i] !== 0x00) {
+        // Allow non-zero for Chinese chars, but if the first few bytes show
+        // the pattern, it's likely UTF-16LE
+        if (i < 10) {
+          isUtf16 = false;
+          break;
+        }
+      }
+    }
+    if (isUtf16 && buf.length >= 4 && buf[1] === 0x00 && buf[3] === 0x00) {
+      return buf.toString("utf-16le");
+    }
+  }
+
+  // Default: UTF-8
+  return buf.toString("utf-8");
 }
