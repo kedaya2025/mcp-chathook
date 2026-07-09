@@ -1,10 +1,11 @@
 /**
- * Shows a native desktop dialog using Windows PowerShell + Windows.Forms.
+ * Shows a native desktop dialog using Windows mshta.exe (HTA).
  *
- * Encoding: triple-safe (PS1 BOM + Base64 text + Base64 result)
- * DPI: SetProcessDPIAware for sharp rendering
+ * Why mshta: IE rendering engine handles DPI natively → sharp text.
+ * Why JScript (not VBScript): proper string handling, no encoding bugs.
+ * Data exchange: Base64 (pure ASCII) → zero encoding risk.
  *
- * On non-Windows platforms, falls back to a terminal-based prompt.
+ * On non-Windows, falls back to terminal stdin.
  */
 export declare function showNativeDialog(message: string, suggestions?: string[]): Promise<{
     action: "accept" | "cancel";
