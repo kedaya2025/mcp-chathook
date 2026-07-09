@@ -155,22 +155,34 @@ function writeResult(text) {
 document.title = b64decode("${titleB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
-// ── Fixed width 600px, default height, textarea auto-fills ──
+// ── Fixed width 600px, min height 300px ──
 var fixedW = 600;
 var minH = 300;
+var maxH = 800;
+var initialized = false;
 
 function fitWindow() {
   window.resizeTo(fixedW, minH);
   var sw = screen.availWidth, sh = screen.availHeight;
   window.moveTo((sw - fixedW) / 2, (sh - minH) / 2);
+  initialized = true;
 }
 
-// ── Resize handler: lock width to 600, enforce min height 300 ──
+// ── Resize handler: lock width, clamp height to 300-800 ──
 function onResize() {
-  // Enforce width lock and min height
-  if (window.outerWidth != fixedW || window.outerHeight < minH) {
-    var h = Math.max(window.outerHeight, minH);
-    window.resizeTo(fixedW, h);
+  // Only enforce after initial fit
+  if (initialized) {
+    var ow = window.outerWidth;
+    var oh = window.outerHeight;
+    var needFix = false;
+    var newW = fixedW;
+    var newH = oh;
+    if (ow != fixedW) { needFix = true; }
+    if (oh < minH) { needFix = true; newH = minH; }
+    if (oh > maxH) { needFix = true; newH = maxH; }
+    if (needFix) {
+      window.resizeTo(newW, newH);
+    }
   }
   // Auto-fit textarea to fill remaining space
   var ta = document.getElementById('input');
@@ -178,7 +190,8 @@ function onResize() {
   var bodyH = document.body.clientHeight;
   var actionsH = actions.offsetHeight;
   var padTop = 16, padBottom = 16, margin = 12;
-  ta.style.height = (bodyH - actionsH - padTop - padBottom - margin) + 'px';
+  var taH = bodyH - actionsH - padTop - padBottom - margin;
+  if (taH > 0) ta.style.height = taH + 'px';
 }
 window.onresize = onResize;
 
