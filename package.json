@@ -1,6 +1,6 @@
 {
   "name": "mcp-chathook",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "An MCP server that provides a native input dialog to keep AI conversations alive until the user explicitly ends the interaction.",
   "type": "module",
   "main": "dist/index.js",

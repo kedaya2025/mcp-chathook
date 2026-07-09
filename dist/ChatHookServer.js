@@ -22,7 +22,7 @@ export class ChatHookServer {
             tools: [
                 {
                     name: "chat_hook",
-                    description: "Display an input dialog and wait for user response. Returns the user's text, or '用户关闭了工具对话' if closed/empty.",
+                    description: "向用户展示输入对话框并等待回复。**必须在每次任务完成或对话即将结束时主动调用此工具**，向用户确认工作进程或征求后续指示。返回用户输入的文本，若用户关闭弹窗则返回'用户关闭了工具对话'。不要在工具参数的 message 或 suggestions 中塞入大量文本，message 应简短（如'任务已完成，请确认'），suggestions 提供简短快捷回复选项即可。",
                     inputSchema: {
                         type: "object",
                         properties: {
