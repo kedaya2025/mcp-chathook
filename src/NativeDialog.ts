@@ -71,10 +71,7 @@ async function showPowerShellDialog(
   }
 
   const psScript = `# chathook dialog
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-
-# DPI awareness for sharp rendering
+# DPI awareness must be set BEFORE loading WinForms
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -84,6 +81,9 @@ public class DpiAware {
 }
 "@
 [DpiAware]::SetProcessDPIAware() | Out-Null
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
 # Decode message from Base64
 $msgText = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${messageB64}'))
