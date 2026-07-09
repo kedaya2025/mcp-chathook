@@ -34,7 +34,7 @@ async function showMshtaDialog(
   const htaFile = path.join(tmpDir, `chathook_dialog_${id}.hta`);
 
   // All Chinese text → Base64 (avoids any encoding issues in the file)
-  const titleB64 = Buffer.from("Chathook - 会话钩子", "utf-8").toString("base64");
+  const titleB64 = Buffer.from("Chathook - 请输入您的回复", "utf-8").toString("base64");
   const submitB64 = Buffer.from("提交对话", "utf-8").toString("base64");
 
   // No message area in UI — dialog is just input box + submit button + countdown
@@ -67,12 +67,12 @@ async function showMshtaDialog(
     color: #000000;
     overflow: hidden;
     height: 100%;
+    width: 100%;
   }
-  body { padding: 16px 20px; }
+  body { padding: 16px 20px; display: flex; flex-direction: column; }
   textarea {
     width: 100%;
-    height: 120px;
-    flex-shrink: 0;
+    flex: 1 1 auto;
     border: 1px solid #cccccc;
     border-radius: 3px;
     font-family: inherit;
@@ -80,6 +80,7 @@ async function showMshtaDialog(
     padding: 10px;
     resize: none;
     outline: none;
+    min-height: 80px;
   }
   textarea:focus { border-color: #333333; }
   .actions {
@@ -166,16 +167,25 @@ function writeResult(text) {
 document.title = b64decode("${titleB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
-// ── Fixed window sizing: no message area, compact layout ──
+// ── Fixed width 600px, default height, textarea auto-fills ──
 function fitWindow() {
-  // Fixed layout: textarea(120) + margin(12) + button(36) + paddings(32) + below(20)
-  var contentH = 16 + 120 + 12 + 36 + 20 + 16;
-  var winH = contentH + 34; // border/title overhead
-  var winW = 520;
+  var winW = 600;
+  var winH = 250; // compact default: textarea fills remaining space
   window.resizeTo(winW, winH);
   var sw = screen.availWidth, sh = screen.availHeight;
   window.moveTo((sw - winW) / 2, (sh - winH) / 2);
 }
+
+// ── Resize handler: textarea auto-adjusts on window resize ──
+function onResize() {
+  var ta = document.getElementById('input');
+  var actions = document.getElementsByTagName('div')[0];
+  var bodyH = document.body.clientHeight;
+  var actionsH = actions.offsetHeight;
+  var padTop = 16, padBottom = 16, margin = 12;
+  ta.style.height = (bodyH - actionsH - padTop - padBottom - margin) + 'px';
+}
+window.onresize = onResize;
 
 // ── Countdown timer (MCP timeout ~180s, use 170s for safety) ──
 var remaining = 170;
@@ -226,6 +236,7 @@ window.onbeforeunload = function() {
 
 // ── Init ──
 fitWindow();
+onResize();
 document.getElementById('input').focus();
 </script>
 </body>
