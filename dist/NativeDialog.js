@@ -56,11 +56,10 @@ async function showMshtaDialog(message, suggestions) {
     overflow: hidden;
     height: 100%;
   }
-  body { padding: 16px 20px; }
+  body { padding: 16px 20px; display: flex; flex-direction: column; }
   textarea {
     width: 100%;
-    height: 120px;
-    flex-shrink: 0;
+    flex: 1 1 auto;
     border: 1px solid #cccccc;
     border-radius: 3px;
     font-family: inherit;
@@ -68,6 +67,7 @@ async function showMshtaDialog(message, suggestions) {
     padding: 10px;
     resize: none;
     outline: none;
+    min-height: 60px;
   }
   textarea:focus { border-color: #333333; }
   .actions {
@@ -156,14 +156,30 @@ document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
 // ── Fixed window sizing: no message area, compact layout ──
 function fitWindow() {
-  // Fixed layout: textarea(120) + margin(12) + button(36) + paddings(32) + below(20)
-  var contentH = 16 + 120 + 12 + 36 + 20 + 16;
-  var winH = contentH + 34; // border/title overhead
   var winW = 600;
+  var winH = 250;
   window.resizeTo(winW, winH);
   var sw = screen.availWidth, sh = screen.availHeight;
   window.moveTo((sw - winW) / 2, (sh - winH) / 2);
 }
+
+// ── Textarea auto-fit on resize ──
+function fitTextarea() {
+  var ta = document.getElementById('input');
+  var actions = document.getElementsByTagName('div')[0];
+  var bodyH = document.body.clientHeight;
+  var actionsH = actions.offsetHeight;
+  var taH = bodyH - actionsH - 16 - 16 - 12;
+  if (taH > 40) ta.style.height = taH + 'px';
+}
+window.onresize = fitTextarea;
+
+// ── Always on top ──
+var shell = new ActiveXObject('WScript.Shell');
+function stayOnTop() {
+  shell.AppActivate('chathook');
+}
+setInterval(stayOnTop, 500);
 
 // ── Countdown timer (MCP timeout ~180s, use 170s for safety) ──
 var remaining = 170;
@@ -214,6 +230,7 @@ window.onbeforeunload = function() {
 
 // ── Init ──
 fitWindow();
+fitTextarea();
 document.getElementById('input').focus();
 </script>
 </body>

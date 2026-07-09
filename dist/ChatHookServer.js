@@ -22,37 +22,18 @@ export class ChatHookServer {
             tools: [
                 {
                     name: "chat_hook",
-                    description: [
-                        "Display an input dialog to the user and wait for their response.",
-                        "",
-                        "IMPORTANT: After completing a task or response, you SHOULD call this tool",
-                        "to keep the conversation alive. The tool blocks until the user responds.",
-                        "",
-                        "USAGE: Do NOT put your full response inside the 'message' parameter.",
-                        "Instead, say everything you need in the conversation first, then call this",
-                        "tool with a short prompt (or omit 'message' entirely). The dialog is just",
-                        "an input box — it should not be used to display your message.",
-                        "",
-                        "Possible return values:",
-                        "  - Normal text: The user's new request or feedback. Continue working.",
-                        "  - '用户关闭了工具对话': The user closed the dialog or submitted empty.",
-                        "    Stop calling this tool and end your response.",
-                    ].join("\n"),
+                    description: "Display an input dialog and wait for user response. Returns the user's text, or '用户关闭了工具对话' if closed/empty.",
                     inputSchema: {
                         type: "object",
                         properties: {
                             message: {
                                 type: "string",
-                                description: "Optional short prompt shown above the input box (e.g. '请输入回复'). " +
-                                    "Do NOT put your full response here — say it in the conversation instead. " +
-                                    "If omitted, a default prompt is used.",
+                                description: "Optional prompt text.",
                             },
                             suggestions: {
                                 type: "array",
                                 items: { type: "string" },
-                                description: "Optional quick-reply buttons. " +
-                                    "e.g. ['继续', '修改上面的内容', '结束对话']. " +
-                                    "The user can still type freely if they prefer.",
+                                description: "Optional quick-reply options.",
                             },
                         },
                         required: [],
