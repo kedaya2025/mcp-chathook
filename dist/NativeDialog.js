@@ -25,6 +25,8 @@ async function showMshtaDialog(message, suggestions) {
     const htaFile = path.join(tmpDir, `chathook_dialog_${id}.hta`);
     // All Chinese text → Base64 (avoids any encoding issues in the file)
     const messageB64 = Buffer.from(message, "utf-8").toString("base64");
+    const titleB64 = Buffer.from("Chathook - 会话钩子", "utf-8").toString("base64");
+    const submitB64 = Buffer.from("提交对话", "utf-8").toString("base64");
     // Suggestions removed per user request — dialog is just prompt + input + submit
     const htaContent = `<!DOCTYPE html>
 <html>
@@ -79,9 +81,15 @@ async function showMshtaDialog(message, suggestions) {
   textarea:focus { border-color: #333333; }
   .actions {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     margin-top: 12px;
   }
+  .countdown {
+    font-size: 13px;
+    color: #999999;
+  }
+  .countdown.warn { color: #cc0000; }
   .submit-btn {
     padding: 8px 28px;
     background: #ffffff;
@@ -98,7 +106,8 @@ async function showMshtaDialog(message, suggestions) {
   <div class="message" id="message"></div>
   <textarea id="input" placeholder=""></textarea>
   <div class="actions">
-    <button class="submit-btn" id="submitBtn">Submit</button>
+    <span class="countdown" id="countdown"></span>
+    <button class="submit-btn" id="submitBtn"></button>
   </div>
 
 <script language="JScript">
@@ -138,28 +147,76 @@ function b64encode(text) {
 }
 
 // ── Write result to file (pure ASCII Base64) ──
+var resultPath = "${resultFile.replace(/\\/g, "\\\\")}";
+var submitted = false;
+
 function writeResult(text) {
+  if (submitted) return;
+  submitted = true;
   var b64 = b64encode(text);
   var fso = new ActiveXObject("Scripting.FileSystemObject");
-  var f = fso.CreateTextFile("${resultFile.replace(/\\/g, "\\\\")}", true, false);
+  var f = fso.CreateTextFile(resultPath, true, false);
   f.Write(b64);
   f.Close();
 }
 
-// ── Init ──
-window.resizeTo(520, 320);
-var sw = screen.availWidth, sh = screen.availHeight;
-window.moveTo((sw - 520) / 2, (sh - 320) / 2);
-
+// ── Set Chinese text via Base64 ──
+document.title = b64decode("${titleB64}");
 document.getElementById('message').innerText = b64decode("${messageB64}");
+document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
+// ── Dynamic window sizing: content height + 20px below button ──
+function fitWindow() {
+  // Measure actual content
+  var msgH = document.getElementById('message').offsetHeight;
+  var taH = document.getElementById('input').offsetHeight;
+  var actH = document.getElementById('submitBtn').offsetHeight;
+  var bodyPadTop = 16;
+  var bodyPadBottom = 16;
+  var msgMarginBottom = 14;
+  var actionsMarginTop = 12;
+  var belowBtn = 20;
+
+  var contentH = bodyPadTop + msgH + msgMarginBottom + taH + actionsMarginTop + actH + belowBtn + bodyPadBottom;
+  // Window border/title bar overhead (~34px for dialog border)
+  var winH = contentH + 34;
+  var winW = 520;
+  window.resizeTo(winW, winH);
+  var sw = screen.availWidth, sh = screen.availHeight;
+  window.moveTo((sw - winW) / 2, (sh - winH) / 2);
+}
+
+// ── Countdown timer (MCP timeout ~180s, use 170s for safety) ──
+var remaining = 170;
+var cdEl = document.getElementById('countdown');
+
+function updateCountdown() {
+  var m = Math.floor(remaining / 60);
+  var s = remaining % 60;
+  cdEl.innerText = m + ':' + (s < 10 ? '0' : '') + s;
+  if (remaining <= 10) {
+    cdEl.className = 'countdown warn';
+  }
+  if (remaining <= 0) {
+    writeResult('');
+    window.close();
+    return;
+  }
+  remaining--;
+}
+updateCountdown();
+var timer = setInterval(updateCountdown, 1000);
+
+// ── Submit handlers ──
 document.getElementById('submitBtn').onclick = function() {
+  clearInterval(timer);
   writeResult(document.getElementById('input').value);
   window.close();
 };
 
 document.getElementById('input').onkeydown = function(e) {
   if (e.ctrlKey && e.keyCode == 13) {
+    clearInterval(timer);
     writeResult(document.getElementById('input').value);
     window.close();
   }
@@ -167,14 +224,17 @@ document.getElementById('input').onkeydown = function(e) {
 
 // Handle X button close — write empty
 window.onbeforeunload = function() {
+  clearInterval(timer);
   try {
     var fso = new ActiveXObject("Scripting.FileSystemObject");
-    if (!fso.FileExists("${resultFile.replace(/\\/g, "\\\\")}")) {
+    if (!fso.FileExists(resultPath)) {
       writeResult("");
     }
   } catch(e) {}
 };
 
+// ── Init ──
+fitWindow();
 document.getElementById('input').focus();
 </script>
 </body>
