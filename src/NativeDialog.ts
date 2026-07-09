@@ -67,12 +67,12 @@ async function showMshtaDialog(
     color: #000000;
     overflow: hidden;
     height: 100%;
-    width: 100%;
   }
-  body { padding: 16px 20px; display: flex; flex-direction: column; }
+  body { padding: 16px 20px; }
   textarea {
     width: 100%;
-    flex: 1 1 auto;
+    height: 120px;
+    flex-shrink: 0;
     border: 1px solid #cccccc;
     border-radius: 3px;
     font-family: inherit;
@@ -80,7 +80,6 @@ async function showMshtaDialog(
     padding: 10px;
     resize: none;
     outline: none;
-    min-height: 80px;
   }
   textarea:focus { border-color: #333333; }
   .actions {
@@ -167,35 +166,16 @@ function writeResult(text) {
 document.title = b64decode("${titleB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
-// ── Fixed 600x300 default, width locked, height freely adjustable ──
-var fixedW = 600;
-var fixedH = 300;
-var minH = 300;
-
+// ── Fixed window sizing: no message area, compact layout ──
 function fitWindow() {
-  window.resizeTo(fixedW, fixedH);
+  // Fixed layout: textarea(120) + margin(12) + button(36) + paddings(32) + below(20)
+  var contentH = 16 + 120 + 12 + 36 + 20 + 16;
+  var winH = contentH + 34; // border/title overhead
+  var winW = 600;
+  window.resizeTo(winW, winH);
   var sw = screen.availWidth, sh = screen.availHeight;
-  window.moveTo((sw - fixedW) / 2, (sh - fixedH) / 2);
+  window.moveTo((sw - winW) / 2, (sh - winH) / 2);
 }
-
-// ── Resize handler: lock width, enforce min height, textarea follows ──
-function onResize() {
-  var ow = window.outerWidth;
-  var oh = window.outerHeight;
-  // Lock width to 600, enforce min height 300, no max limit
-  if (ow != fixedW || oh < minH) {
-    var h = Math.max(oh, minH);
-    window.resizeTo(fixedW, h);
-  }
-  // Auto-fit textarea to fill remaining space
-  var ta = document.getElementById('input');
-  var actions = document.getElementsByTagName('div')[0];
-  var bodyH = document.body.clientHeight;
-  var actionsH = actions.offsetHeight;
-  var taH = bodyH - actionsH - 16 - 16 - 12;
-  if (taH > 40) ta.style.height = taH + 'px';
-}
-window.onresize = onResize;
 
 // ── Countdown timer (MCP timeout ~180s, use 170s for safety) ──
 var remaining = 170;
@@ -246,7 +226,6 @@ window.onbeforeunload = function() {
 
 // ── Init ──
 fitWindow();
-onResize();
 document.getElementById('input').focus();
 </script>
 </body>
