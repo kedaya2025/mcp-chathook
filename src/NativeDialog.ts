@@ -132,6 +132,7 @@ function b64decode(b64) {
 }
 
 function b64encode(text) {
+  if (!text || text.length === 0) return "";
   var stream = new ActiveXObject("ADODB.Stream");
   stream.Type = 2; // adTypeText
   stream.Charset = "utf-8";
@@ -158,7 +159,7 @@ function writeResult(text) {
   var b64 = b64encode(text);
   var fso = new ActiveXObject("Scripting.FileSystemObject");
   var f = fso.CreateTextFile(resultPath, true, false);
-  f.Write(b64);
+  if (b64.length > 0) f.Write(b64);
   f.Close();
 }
 
