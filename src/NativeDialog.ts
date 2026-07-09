@@ -167,11 +167,10 @@ function writeResult(text) {
 document.title = b64decode("${titleB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
-// ── Fixed 600x300, textarea auto-fills on resize ──
+// ── Fixed 600x300 default, width locked, height freely adjustable ──
 var fixedW = 600;
 var fixedH = 300;
 var minH = 300;
-var maxH = 800;
 
 function fitWindow() {
   window.resizeTo(fixedW, fixedH);
@@ -179,18 +178,16 @@ function fitWindow() {
   window.moveTo((sw - fixedW) / 2, (sh - fixedH) / 2);
 }
 
-// ── Resize handler: lock width, clamp height, textarea follows ──
+// ── Resize handler: lock width, enforce min height, textarea follows ──
 function onResize() {
   var ow = window.outerWidth;
   var oh = window.outerHeight;
-  // Enforce width = 600, height between 300-800
-  if (ow != fixedW || oh < minH || oh > maxH) {
-    var h = oh;
-    if (h < minH) h = minH;
-    if (h > maxH) h = maxH;
+  // Lock width to 600, enforce min height 300, no max limit
+  if (ow != fixedW || oh < minH) {
+    var h = Math.max(oh, minH);
     window.resizeTo(fixedW, h);
   }
-  // Auto-fit textarea
+  // Auto-fit textarea to fill remaining space
   var ta = document.getElementById('input');
   var actions = document.getElementsByTagName('div')[0];
   var bodyH = document.body.clientHeight;
