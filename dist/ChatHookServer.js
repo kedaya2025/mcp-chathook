@@ -132,21 +132,11 @@ export class ChatHookServer {
                         };
                     }
                     case "decline":
-                        return {
-                            content: [
-                                { type: "text", text: SIGNALS.USER_DECLINED },
-                            ],
-                        };
                     case "cancel":
-                        return {
-                            content: [
-                                { type: "text", text: SIGNALS.USER_CANCELLED },
-                            ],
-                        };
                     default:
                         return {
                             content: [
-                                { type: "text", text: SIGNALS.USER_CANCELLED },
+                                { type: "text", text: "用户关闭了工具对话" },
                             ],
                         };
                 }
@@ -166,21 +156,21 @@ export class ChatHookServer {
                 // ─── Attempt 2: Native desktop dialog (fallback) ───
                 try {
                     const dialogResult = await showNativeDialog(message, suggestions);
-                    if (dialogResult.action === "accept") {
+                    if (dialogResult.action === "accept" && dialogResult.text.trim()) {
                         return {
                             content: [
                                 {
                                     type: "text",
-                                    text: dialogResult.text || "(用户提交了空回复)",
+                                    text: dialogResult.text,
                                 },
                             ],
                         };
                     }
                     else {
-                        // User cancelled or closed the dialog
+                        // User closed dialog or submitted empty content
                         return {
                             content: [
-                                { type: "text", text: SIGNALS.USER_CANCELLED },
+                                { type: "text", text: "用户关闭了工具对话" },
                             ],
                         };
                     }

@@ -153,21 +153,11 @@ export class ChatHookServer {
             };
           }
           case "decline":
-            return {
-              content: [
-                { type: "text" as const, text: SIGNALS.USER_DECLINED },
-              ],
-            };
           case "cancel":
-            return {
-              content: [
-                { type: "text" as const, text: SIGNALS.USER_CANCELLED },
-              ],
-            };
           default:
             return {
               content: [
-                { type: "text" as const, text: SIGNALS.USER_CANCELLED },
+                { type: "text" as const, text: "用户关闭了工具对话" },
               ],
             };
         }
@@ -193,20 +183,20 @@ export class ChatHookServer {
         try {
           const dialogResult = await showNativeDialog(message, suggestions);
 
-          if (dialogResult.action === "accept") {
+          if (dialogResult.action === "accept" && dialogResult.text.trim()) {
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: dialogResult.text || "(用户提交了空回复)",
+                  text: dialogResult.text,
                 },
               ],
             };
           } else {
-            // User cancelled or closed the dialog
+            // User closed dialog or submitted empty content
             return {
               content: [
-                { type: "text" as const, text: SIGNALS.USER_CANCELLED },
+                { type: "text" as const, text: "用户关闭了工具对话" },
               ],
             };
           }
