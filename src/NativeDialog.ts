@@ -186,15 +186,7 @@ function fitTextarea() {
 }
 window.onresize = fitTextarea;
 
-// ── Always on top (only when window loses focus, preserves input focus) ──
-function stayOnTop() {
-  if (!document.hasFocus()) {
-    var activeEl = document.activeElement;
-    window.focus();
-    if (activeEl && activeEl.tagName) activeEl.focus();
-  }
-}
-setInterval(stayOnTop, 1000);
+// ── Set window as always-on-top (handled from Node.js side via PowerShell) ──
 
 // ── Countdown timer (MCP timeout ~180s, use 170s for safety) ──
 var remaining = 170;
@@ -256,6 +248,27 @@ document.getElementById('input').focus();
     const bom = Buffer.from([0xef, 0xbb, 0xbf]);
     const contentBuf = Buffer.from(htaContent, "utf-8");
     fs.writeFileSync(htaFile, Buffer.concat([bom, contentBuf]));
+
+    // Set window as always-on-top 500ms after launch (Win32 SetWindowPos)
+    const topmostPs = `Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32 {
+  [DllImport("user32.dll")]
+  public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+  [DllImport("user32.dll")]
+  public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+}
+"@
+Start-Sleep -Milliseconds 500
+$h = [Win32]::FindWindow($null, "Chathook - \u8BF7\u8F93\u5165\u60A8\u7684\u56DE\u590D")
+if ($h -ne [IntPtr]::Zero) {
+  [Win32]::SetWindowPos($h, [IntPtr]::new(-1), 0, 0, 0, 0, 0x0003)
+}`;
+    spawn("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+      "-Command", topmostPs,
+    ], { shell: false, stdio: "ignore" }).unref();
 
     await new Promise<void>((resolve, reject) => {
       const proc = spawn("mshta.exe", [`"${htaFile}"`], {
