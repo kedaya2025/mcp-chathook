@@ -155,43 +155,36 @@ function writeResult(text) {
 document.title = b64decode("${titleB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
-// ── Fixed width 600px, min height 300px ──
+// ── Fixed 600x300, textarea auto-fills on resize ──
 var fixedW = 600;
+var fixedH = 300;
 var minH = 300;
 var maxH = 800;
-var initialized = false;
 
 function fitWindow() {
-  window.resizeTo(fixedW, minH);
+  window.resizeTo(fixedW, fixedH);
   var sw = screen.availWidth, sh = screen.availHeight;
-  window.moveTo((sw - fixedW) / 2, (sh - minH) / 2);
-  initialized = true;
+  window.moveTo((sw - fixedW) / 2, (sh - fixedH) / 2);
 }
 
-// ── Resize handler: lock width, clamp height to 300-800 ──
+// ── Resize handler: lock width, clamp height, textarea follows ──
 function onResize() {
-  // Only enforce after initial fit
-  if (initialized) {
-    var ow = window.outerWidth;
-    var oh = window.outerHeight;
-    var needFix = false;
-    var newW = fixedW;
-    var newH = oh;
-    if (ow != fixedW) { needFix = true; }
-    if (oh < minH) { needFix = true; newH = minH; }
-    if (oh > maxH) { needFix = true; newH = maxH; }
-    if (needFix) {
-      window.resizeTo(newW, newH);
-    }
+  var ow = window.outerWidth;
+  var oh = window.outerHeight;
+  // Enforce width = 600, height between 300-800
+  if (ow != fixedW || oh < minH || oh > maxH) {
+    var h = oh;
+    if (h < minH) h = minH;
+    if (h > maxH) h = maxH;
+    window.resizeTo(fixedW, h);
   }
-  // Auto-fit textarea to fill remaining space
+  // Auto-fit textarea
   var ta = document.getElementById('input');
   var actions = document.getElementsByTagName('div')[0];
   var bodyH = document.body.clientHeight;
   var actionsH = actions.offsetHeight;
-  var padTop = 16, padBottom = 16, margin = 12;
-  var taH = bodyH - actionsH - padTop - padBottom - margin;
-  if (taH > 0) ta.style.height = taH + 'px';
+  var taH = bodyH - actionsH - 16 - 16 - 12;
+  if (taH > 40) ta.style.height = taH + 'px';
 }
 window.onresize = onResize;
 
