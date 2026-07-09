@@ -168,16 +168,23 @@ document.title = b64decode("${titleB64}");
 document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
 // ── Fixed width 600px, default height, textarea auto-fills ──
+var fixedW = 600;
+var minH = 300;
+
 function fitWindow() {
-  var winW = 600;
-  var winH = 250; // compact default: textarea fills remaining space
-  window.resizeTo(winW, winH);
+  window.resizeTo(fixedW, minH);
   var sw = screen.availWidth, sh = screen.availHeight;
-  window.moveTo((sw - winW) / 2, (sh - winH) / 2);
+  window.moveTo((sw - fixedW) / 2, (sh - minH) / 2);
 }
 
-// ── Resize handler: textarea auto-adjusts on window resize ──
+// ── Resize handler: lock width to 600, enforce min height 300 ──
 function onResize() {
+  // Enforce width lock and min height
+  if (window.outerWidth != fixedW || window.outerHeight < minH) {
+    var h = Math.max(window.outerHeight, minH);
+    window.resizeTo(fixedW, h);
+  }
+  // Auto-fit textarea to fill remaining space
   var ta = document.getElementById('input');
   var actions = document.getElementsByTagName('div')[0];
   var bodyH = document.body.clientHeight;
