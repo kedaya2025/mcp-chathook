@@ -56,10 +56,11 @@ async function showMshtaDialog(message, suggestions) {
     overflow: hidden;
     height: 100%;
   }
-  body { padding: 16px 20px; display: flex; flex-direction: column; }
+  body { padding: 16px 20px; }
   textarea {
     width: 100%;
-    flex: 1 1 auto;
+    height: 120px;
+    flex-shrink: 0;
     border: 1px solid #cccccc;
     border-radius: 3px;
     font-family: inherit;
@@ -67,7 +68,6 @@ async function showMshtaDialog(message, suggestions) {
     padding: 10px;
     resize: none;
     outline: none;
-    min-height: 60px;
   }
   textarea:focus { border-color: #333333; }
   .actions {
@@ -156,25 +156,14 @@ document.getElementById('submitBtn').innerText = b64decode("${submitB64}");
 
 // ── Fixed window sizing: no message area, compact layout ──
 function fitWindow() {
+  // Fixed layout: textarea(120) + margin(12) + button(36) + paddings(32) + below(20)
+  var contentH = 16 + 120 + 12 + 36 + 20 + 16;
+  var winH = contentH + 34; // border/title overhead
   var winW = 600;
-  var winH = 250;
   window.resizeTo(winW, winH);
   var sw = screen.availWidth, sh = screen.availHeight;
   window.moveTo((sw - winW) / 2, (sh - winH) / 2);
 }
-
-// ── Textarea auto-fit on resize ──
-function fitTextarea() {
-  var ta = document.getElementById('input');
-  var actions = document.getElementsByTagName('div')[0];
-  var bodyH = document.body.clientHeight;
-  var actionsH = actions.offsetHeight;
-  var taH = bodyH - actionsH - 16 - 16 - 12;
-  if (taH > 40) ta.style.height = taH + 'px';
-}
-window.onresize = fitTextarea;
-
-// ── Set window as always-on-top (handled from Node.js side via PowerShell) ──
 
 // ── Countdown timer (MCP timeout ~180s, use 170s for safety) ──
 var remaining = 170;
@@ -225,7 +214,6 @@ window.onbeforeunload = function() {
 
 // ── Init ──
 fitWindow();
-fitTextarea();
 document.getElementById('input').focus();
 </script>
 </body>
@@ -235,26 +223,6 @@ document.getElementById('input').focus();
         const bom = Buffer.from([0xef, 0xbb, 0xbf]);
         const contentBuf = Buffer.from(htaContent, "utf-8");
         fs.writeFileSync(htaFile, Buffer.concat([bom, contentBuf]));
-        // Set window as always-on-top 500ms after launch (Win32 SetWindowPos)
-        const topmostPs = `Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class Win32 {
-  [DllImport("user32.dll")]
-  public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-  [DllImport("user32.dll")]
-  public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
-}
-"@
-Start-Sleep -Milliseconds 500
-$h = [Win32]::FindWindow($null, "Chathook - \u8BF7\u8F93\u5165\u60A8\u7684\u56DE\u590D")
-if ($h -ne [IntPtr]::Zero) {
-  [Win32]::SetWindowPos($h, [IntPtr]::new(-1), 0, 0, 0, 0, 0x0003)
-}`;
-        spawn("powershell.exe", [
-            "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-            "-Command", topmostPs,
-        ], { shell: false, stdio: "ignore" }).unref();
         await new Promise((resolve, reject) => {
             const proc = spawn("mshta.exe", [`"${htaFile}"`], {
                 shell: true,
