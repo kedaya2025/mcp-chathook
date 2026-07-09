@@ -35,27 +35,8 @@ async function showMshtaDialog(
 
   // All Chinese text → Base64 (avoids any encoding issues in the file)
   const messageB64 = Buffer.from(message, "utf-8").toString("base64");
-  const suggestionB64s = suggestions.map((s) =>
-    Buffer.from(s, "utf-8").toString("base64"),
-  );
 
-  // Build suggestion buttons JS
-  let suggestionHtml = "";
-  let suggestionJs = "";
-  if (suggestionB64s.length > 0) {
-    suggestionHtml = '<div class="suggestions" id="suggestions"></div>';
-    suggestionJs = `
-  var sugs = ${JSON.stringify(suggestionB64s)};
-  var sugPanel = document.getElementById('suggestions');
-  sugs.forEach(function(b64) {
-    var text = b64decode(b64);
-    var btn = document.createElement('button');
-    btn.className = 'sug-btn';
-    btn.textContent = text;
-    btn.onclick = function() { document.getElementById('input').value = text; };
-    sugPanel.appendChild(btn);
-  });`;
-  }
+  // Suggestions removed per user request — dialog is just prompt + input + submit
 
   const htaContent = `<!DOCTYPE html>
 <html>
@@ -88,39 +69,22 @@ async function showMshtaDialog(
   }
   body { padding: 16px 20px; }
   .message {
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 16px;
+    line-height: 1.7;
     white-space: pre-wrap;
     word-break: break-word;
-    margin-bottom: 12px;
-    max-height: 160px;
+    margin-bottom: 14px;
+    max-height: 180px;
     overflow-y: auto;
   }
-  .suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-  .sug-btn {
-    padding: 4px 12px;
-    background: #f0f0f0;
-    border: 1px solid #cccccc;
-    border-radius: 3px;
-    font-size: 13px;
-    cursor: pointer;
-    font-family: inherit;
-    white-space: nowrap;
-  }
-  .sug-btn:hover { background: #e0e0e0; }
   textarea {
     width: 100%;
-    height: 100px;
+    height: 120px;
     border: 1px solid #cccccc;
     border-radius: 3px;
     font-family: inherit;
-    font-size: 14px;
-    padding: 8px;
+    font-size: 16px;
+    padding: 10px;
     resize: none;
     outline: none;
   }
@@ -128,14 +92,14 @@ async function showMshtaDialog(
   .actions {
     display: flex;
     justify-content: flex-end;
-    margin-top: 10px;
+    margin-top: 12px;
   }
   .submit-btn {
-    padding: 6px 24px;
+    padding: 8px 28px;
     background: #ffffff;
     border: 1px solid #333333;
     border-radius: 3px;
-    font-size: 14px;
+    font-size: 15px;
     cursor: pointer;
     font-family: inherit;
   }
@@ -144,7 +108,6 @@ async function showMshtaDialog(
 </head>
 <body>
   <div class="message" id="message"></div>
-  ${suggestionHtml}
   <textarea id="input" placeholder=""></textarea>
   <div class="actions">
     <button class="submit-btn" id="submitBtn">Submit</button>
@@ -196,12 +159,11 @@ function writeResult(text) {
 }
 
 // ── Init ──
-window.resizeTo(500, 340);
+window.resizeTo(520, 320);
 var sw = screen.availWidth, sh = screen.availHeight;
-window.moveTo((sw - 500) / 2, (sh - 340) / 2);
+window.moveTo((sw - 520) / 2, (sh - 320) / 2);
 
 document.getElementById('message').innerText = b64decode("${messageB64}");
-${suggestionJs}
 
 document.getElementById('submitBtn').onclick = function() {
   writeResult(document.getElementById('input').value);
