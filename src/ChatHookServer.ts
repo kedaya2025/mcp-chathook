@@ -36,15 +36,17 @@ export class ChatHookServer {
             "Display an input dialog to the user and wait for their response.",
             "",
             "IMPORTANT: After completing a task or response, you SHOULD call this tool",
-            "to ask the user if they need anything else. This keeps the conversation",
-            "alive without requiring the user to type a new message.",
+            "to keep the conversation alive. The tool blocks until the user responds.",
             "",
-            "The tool will block until the user responds. Possible return values:",
+            "USAGE: Do NOT put your full response inside the 'message' parameter.",
+            "Instead, say everything you need in the conversation first, then call this",
+            "tool with a short prompt (or omit 'message' entirely). The dialog is just",
+            "an input box — it should not be used to display your message.",
+            "",
+            "Possible return values:",
             "  - Normal text: The user's new request or feedback. Continue working.",
-            "  - [CHATHOOK:USER_DECLINED]: The user clicked 'Decline' (end conversation).",
+            "  - '用户关闭了工具对话': The user closed the dialog or submitted empty.",
             "    Stop calling this tool and end your response.",
-            "  - [CHATHOOK:USER_CANCELLED]: The user cancelled the input.",
-            "    You may end your response or call this tool again.",
           ].join("\n"),
           inputSchema: {
             type: "object" as const,
@@ -52,9 +54,9 @@ export class ChatHookServer {
               message: {
                 type: "string",
                 description:
-                  "The message to display to the user. " +
-                  "This should include a summary of what you've done and a prompt " +
-                  "for what they'd like next.",
+                  "Optional short prompt shown above the input box (e.g. '请输入回复'). " +
+                  "Do NOT put your full response here — say it in the conversation instead. " +
+                  "If omitted, a default prompt is used.",
               },
               suggestions: {
                 type: "array",
@@ -65,7 +67,7 @@ export class ChatHookServer {
                   "The user can still type freely if they prefer.",
               },
             },
-            required: ["message"],
+            required: [],
           },
         },
       ],
@@ -87,18 +89,7 @@ export class ChatHookServer {
         };
       }
 
-      const message = args?.message as string | undefined;
-      if (!message) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Error: 'message' parameter is required.",
-            },
-          ],
-          isError: true,
-        };
-      }
+      const message = (args?.message as string | undefined) || "请输入您的回复";
 
       const suggestions = (args?.suggestions as string[] | undefined) ?? [];
 
