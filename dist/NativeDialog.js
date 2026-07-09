@@ -7,13 +7,13 @@ import os from "node:os";
  * The dialog displays a message, optional quick-reply buttons, a text area,
  * and Submit / Cancel buttons.
  *
+ * Data is exchanged via Base64 to avoid all encoding issues.
  * On non-Windows platforms, falls back to a terminal-based prompt.
  */
 export async function showNativeDialog(message, suggestions = []) {
     if (process.platform === "win32") {
         return showMshtaDialog(message, suggestions);
     }
-    // Fallback for non-Windows: simple stdin prompt
     return showStdinDialog(message);
 }
 // ─── Windows: mshta.exe ─────────────────────────────────────
@@ -26,8 +26,10 @@ async function showMshtaDialog(message, suggestions) {
     const escapedMessage = escapeHtml(message);
     // Build suggestion buttons
     const suggestionButtons = suggestions
-        .map((s, i) => `<button class="suggestion-btn" onclick="fillInput('${escapeJsString(s)}')">${escapeHtml(s)}</button>`)
+        .map((s) => `<button class="suggestion-btn" onclick="fillInput('${escapeJsString(s)}')">${escapeHtml(s)}</button>`)
         .join("\n");
+    // Path with double backslashes for VBScript string
+    const vbsPath = resultFile.replace(/\\/g, "\\\\");
     const htaContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -120,9 +122,7 @@ async function showMshtaDialog(message, suggestions) {
     resize: vertical;
     outline: none;
   }
-  textarea:focus {
-    border-color: #89b4fa;
-  }
+  textarea:focus { border-color: #89b4fa; }
   .actions {
     display: flex;
     justify-content: flex-end;
@@ -157,23 +157,47 @@ async function showMshtaDialog(message, suggestions) {
   }
 </style>
 <script language="VBScript">
-  Sub WriteResult(val)
-    Set stream = CreateObject("ADODB.Stream")
-    stream.Type = 2
-    stream.Charset = "utf-8"
-    stream.Open
-    stream.WriteText val
-    stream.SaveToFile "${resultFile.replace(/\\/g, "\\\\")}", 2
-    stream.Close
+  ' Write result as Base64-encoded UTF-8 to avoid all encoding issues
+  Sub WriteResult(text, isCancel)
+    Dim encoded
+    If isCancel Then
+      encoded = "CANCEL"
+    Else
+      ' Convert text to UTF-8 bytes, then to Base64
+      Set stream = CreateObject("ADODB.Stream")
+      stream.Type = 2  ' adTypeText
+      stream.Charset = "utf-8"
+      stream.Open
+      stream.WriteText text
+      stream.Position = 0
+      stream.Type = 1  ' adTypeBinary
+      ' Skip the 3-byte UTF-8 BOM that ADODB.Stream adds
+      stream.Position = 3
+      Dim bytes
+      bytes = stream.Read
+      stream.Close
+
+      Set xml = CreateObject("MSXML2.DOMDocument")
+      Set node = xml.createElement("b64")
+      node.dataType = "bin.base64"
+      node.nodeTypedValue = bytes
+      encoded = node.text
+    End If
+
+    ' Write encoded string as ASCII (pure ASCII, no encoding issues)
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set f = fso.CreateTextFile("${vbsPath}", True, False)
+    f.Write encoded
+    f.Close
     window.close
   End Sub
 
   Sub OnSubmit()
-    WriteResult document.getElementById("userInput").Value
+    WriteResult document.getElementById("userInput").Value, False
   End Sub
 
   Sub OnCancel()
-    WriteResult "__CANCELLED__"
+    WriteResult "", True
   End Sub
 
   Sub FillInput(val)
@@ -182,12 +206,10 @@ async function showMshtaDialog(message, suggestions) {
 
   Sub Window_OnLoad()
     window.resizeTo 520, 480
-    Dim w, h, sw, sh
+    Dim sw, sh
     sw = document.parentWindow.screen.availWidth
     sh = document.parentWindow.screen.availHeight
-    w = 520
-    h = 480
-    window.moveTo (sw - w) \\ 2, (sh - h) \\ 2
+    window.moveTo (sw - 520) \\ 2, (sh - 480) \\ 2
     document.getElementById("userInput").Focus
   End Sub
 </script>
@@ -204,9 +226,8 @@ async function showMshtaDialog(message, suggestions) {
     <button class="action-btn btn-cancel" onclick="OnCancel()">取消</button>
     <button class="action-btn btn-submit" onclick="OnSubmit()">提交 &#9656;</button>
   </div>
-  <div class="footer">chathook v1.0 &#8226; Ctrl+Enter in textarea to submit</div>
+  <div class="footer">chathook v1.0 &#8226; Ctrl+Enter to submit</div>
   <script language="VBScript">
-    ' Allow Ctrl+Enter to submit
     Sub userInput_OnKeyDown
       If window.event.ctrlKey And window.event.keyCode = 13 Then
         OnSubmit
@@ -216,31 +237,26 @@ async function showMshtaDialog(message, suggestions) {
 </body>
 </html>`;
     try {
-        fs.writeFileSync(htaFile, htaContent, "utf-8");
+        // Write HTA file with UTF-8 BOM so mshta.exe renders Chinese correctly
+        const bom = "\uFEFF";
+        fs.writeFileSync(htaFile, bom + htaContent, "utf-8");
         await new Promise((resolve, reject) => {
             const proc = spawn("mshta.exe", [`"${htaFile}"`], {
                 shell: true,
                 stdio: "ignore",
             });
-            proc.on("close", (code) => {
-                resolve();
-            });
-            proc.on("error", (err) => {
-                reject(err);
-            });
+            proc.on("close", () => resolve());
+            proc.on("error", (err) => reject(err));
         });
-        // Read result (ADODB.Stream UTF-8 may include BOM)
+        // Read result (pure ASCII Base64 or "CANCEL")
         if (fs.existsSync(resultFile)) {
-            let content = fs.readFileSync(resultFile, "utf-8");
-            // Strip BOM if present
-            if (content.charCodeAt(0) === 0xfeff) {
-                content = content.slice(1);
-            }
-            content = content.trim();
-            if (content === "__CANCELLED__") {
+            const raw = fs.readFileSync(resultFile, "latin1").trim();
+            if (raw === "CANCEL") {
                 return { action: "cancel", text: "" };
             }
-            return { action: "accept", text: content };
+            // Decode Base64 → UTF-8
+            const text = Buffer.from(raw, "base64").toString("utf-8");
+            return { action: "accept", text };
         }
         // File doesn't exist — dialog was closed via X button
         return { action: "cancel", text: "" };
@@ -254,7 +270,7 @@ async function showMshtaDialog(message, suggestions) {
                 fs.unlinkSync(resultFile);
         }
         catch {
-            // ignore cleanup errors
+            // ignore
         }
     }
 }
