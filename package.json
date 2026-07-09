@@ -1,12 +1,15 @@
 {
   "name": "mcp-chathook",
   "version": "1.0.0",
-  "description": "An MCP server that uses native elicitation to keep AI conversations alive — users input directly in the MCP client's chat UI.",
+  "description": "An MCP server that provides a native input dialog to keep AI conversations alive until the user explicitly ends the interaction.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "mcp-chathook": "dist/index.js"
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -18,10 +21,14 @@
     "vscode",
     "ai-agent",
     "human-in-the-loop",
-    "elicitation",
     "chathook"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kedaya2025/mcp-chathook.git"
+  },
+  "homepage": "https://github.com/kedaya2025/mcp-chathook#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1"
   },
